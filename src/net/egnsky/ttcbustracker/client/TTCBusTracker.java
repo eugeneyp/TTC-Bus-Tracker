@@ -33,7 +33,7 @@ import com.google.gwt.xml.client.XMLParser;
  */
 public class TTCBusTracker implements EntryPoint {
 	LatLng finchStation;
-	List<LatLng> vehicleLocations;
+	List<Vehicle> vehicleLocations;
 	MapWidget map;
 
   // GWT module entry point method.
@@ -83,17 +83,18 @@ public class TTCBusTracker implements EntryPoint {
     		 }
     		 public void onResponseReceived(Request request, Response response) {
     			 vehicleLocations = parseVehicleLocations(response.getText());
-    			 Icon busIcon = Icon.newInstance(GWT.getModuleBaseURL() + "images/bus_icon.gif");
-    			 //busIcon.setIconSize(Size.newInstance(12, 20));
-    			 busIcon.setIconSize(Size.newInstance(80, 80));
-    			 //busIcon.setShadowSize(Size.newInstance(22, 20));
-    			 busIcon.setIconAnchor(Point.newInstance(40, 40));
-    			 busIcon.setInfoWindowAnchor(Point.newInstance(40, 40));
     			 
-    			 MarkerOptions options = MarkerOptions.newInstance();
-    			 options.setIcon(busIcon);
     			 for (int i = 0; i < vehicleLocations.size(); i++){
-    			    	map.addOverlay(new Marker(vehicleLocations.get(i), options));
+    				 int heading = vehicleLocations.get(i).getHeading();
+    				 int approxHeading = ((heading + 5) / 10 * 10) % 360;
+    				 Icon busIcon = Icon.newInstance(GWT.getModuleBaseURL() + "images/bus_icon" + approxHeading + ".gif");
+        			 busIcon.setIconSize(Size.newInstance(60, 60));
+        			 busIcon.setIconAnchor(Point.newInstance(30, 30));
+        			 busIcon.setInfoWindowAnchor(Point.newInstance(30, 30));
+        			 
+        			 MarkerOptions options = MarkerOptions.newInstance();
+        			 options.setIcon(busIcon);
+        			 map.addOverlay(new Marker(vehicleLocations.get(i).getLatLng(), options));
     			 }
     		 }
     		 });
@@ -110,16 +111,14 @@ public class TTCBusTracker implements EntryPoint {
 	  Window.alert("Failed to send the message: " + exception.getMessage());
   }
   
-  private List<LatLng> parseVehicleLocations(String xmlText) {	
-	  List<LatLng> vehicleList = new ArrayList<LatLng>();
+  private List<Vehicle> parseVehicleLocations(String xmlText) {	
+	  List<Vehicle> vehicleList = new ArrayList<Vehicle>();
 	  Document vehicleLocationDom = XMLParser.parse(xmlText);
 	  NodeList vehicleNodeList = vehicleLocationDom.getElementsByTagName("vehicle");
 	  
 	  for (int i = 0; i < vehicleNodeList.getLength(); i++){
 		  Element n = (Element)vehicleNodeList.item(i);
-		  double latitude = Double.parseDouble(n.getAttribute("lat"));
-		  double longitude = Double.parseDouble(n.getAttribute("lon"));
-		  vehicleList.add(LatLng.newInstance(latitude, longitude));
+		  vehicleList.add(new Vehicle(n));
 	  }
 	  
 	  return vehicleList;
