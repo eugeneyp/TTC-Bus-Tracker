@@ -22,6 +22,9 @@ import com.google.gwt.maps.client.overlay.Marker;
 import com.google.gwt.maps.client.overlay.MarkerOptions;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.DockLayoutPanel;
+import com.google.gwt.user.client.ui.HorizontalPanel;
+import com.google.gwt.user.client.ui.Label;
+import com.google.gwt.user.client.ui.ListBox;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.gwt.xml.client.Document;
 import com.google.gwt.xml.client.Element;
@@ -55,10 +58,8 @@ public class TTCBusTracker implements EntryPoint {
   private void buildUi() {
     // Open a map centred on Finch station
 	finchStation = LatLng.newInstance(43.779729, -79.415454);
-	//finchStation = LatLng.newInstance(39.509, -98.434);
 
     map = new MapWidget(finchStation, 13);
-    //final MapWidget map = new MapWidget(toronto, 13);
     map.setSize("100%", "100%");
     // Add some controls for the zoom level
     map.addControl(new LargeMapControl());
@@ -66,9 +67,21 @@ public class TTCBusTracker implements EntryPoint {
     // Add an info window to highlight a point of interest
     //map.getInfoWindow().open(map.getCenter(),
         //new InfoWindowContent("World's Largest Ball of Sisal Twine"));
+    
+    ListBox busRoutesListBox = new ListBox();
+    busRoutesListBox.addItem("53");
+    busRoutesListBox.addItem("42");
+    busRoutesListBox.setVisibleItemCount(1); // make it into a drop-down
+    Label label = new Label();
+    label.setText("Select Bus Route:");
+    
+    final HorizontalPanel headerDock = new HorizontalPanel();
+    headerDock.add(label);
+    headerDock.add(busRoutesListBox);
 
-    final DockLayoutPanel dock = new DockLayoutPanel(Unit.PX);
-    dock.addNorth(map, 1000);
+    final DockLayoutPanel dock = new DockLayoutPanel(Unit.EM);
+    dock.addNorth(headerDock, 2);
+    dock.add(map);
 
     // Add the map to the HTML host page
     RootLayoutPanel.get().add(dock);
