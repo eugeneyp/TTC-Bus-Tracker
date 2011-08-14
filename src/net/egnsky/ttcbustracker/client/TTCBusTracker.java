@@ -1,16 +1,17 @@
 package net.egnsky.ttcbustracker.client;
 
-import java.util.ArrayList;
 import java.util.List;
+
+import net.egnsky.ttcbustracker.client.nextbusobj.NextBusClient;
+import net.egnsky.ttcbustracker.client.nextbusobj.NextBusClientCallback;
+import net.egnsky.ttcbustracker.client.nextbusobj.Route;
+import net.egnsky.ttcbustracker.client.nextbusobj.Vehicle;
 
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.Style.Unit;
-import com.google.gwt.http.client.Request;
-import com.google.gwt.http.client.RequestBuilder;
-import com.google.gwt.http.client.RequestCallback;
-import com.google.gwt.http.client.RequestException;
-import com.google.gwt.http.client.Response;
+import com.google.gwt.event.dom.client.ChangeEvent;
+import com.google.gwt.event.dom.client.ChangeHandler;
 import com.google.gwt.maps.client.MapWidget;
 import com.google.gwt.maps.client.Maps;
 import com.google.gwt.maps.client.control.LargeMapControl;
@@ -23,21 +24,19 @@ import com.google.gwt.maps.client.overlay.MarkerOptions;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.DockLayoutPanel;
 import com.google.gwt.user.client.ui.HorizontalPanel;
-import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.ListBox;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
-import com.google.gwt.xml.client.Document;
-import com.google.gwt.xml.client.Element;
-import com.google.gwt.xml.client.NodeList;
-import com.google.gwt.xml.client.XMLParser;
 
 /**
  * Entry point classes define <code>onModuleLoad()</code>.
  */
-public class TTCBusTracker implements EntryPoint {
-	LatLng finchStation;
-	List<Vehicle> vehicleLocations;
-	MapWidget map;
+public class TTCBusTracker implements EntryPoint, NextBusClientCallback{
+	private LatLng finchStation;
+	private List<Vehicle> vehicleLocations;
+	private List<Route> routeList;
+	private MapWidget map;
+	private ListBox busRoutesListBox;
+	private NextBusClient nextBusClient = new NextBusClient(this);
 
   // GWT module entry point method.
   public void onModuleLoad() {
@@ -63,20 +62,17 @@ public class TTCBusTracker implements EntryPoint {
     map.setSize("100%", "100%");
     // Add some controls for the zoom level
     map.addControl(new LargeMapControl());
-
-    // Add an info window to highlight a point of interest
-    //map.getInfoWindow().open(map.getCenter(),
-        //new InfoWindowContent("World's Largest Ball of Sisal Twine"));
     
-    ListBox busRoutesListBox = new ListBox();
-    busRoutesListBox.addItem("53");
-    busRoutesListBox.addItem("42");
+    busRoutesListBox = new ListBox();
     busRoutesListBox.setVisibleItemCount(1); // make it into a drop-down
-    Label label = new Label();
-    label.setText("Select Bus Route:");
+    busRoutesListBox.addChangeHandler(new ChangeHandler(){
+    	public void onChange(ChangeEvent event){
+    		int index = busRoutesListBox.getSelectedIndex();
+    		nextBusClient.requestVehicleLocations(routeList.get(index));
+    	}
+    });
     
     final HorizontalPanel headerDock = new HorizontalPanel();
-    headerDock.add(label);
     headerDock.add(busRoutesListBox);
 
     final DockLayoutPanel dock = new DockLayoutPanel(Unit.EM);
@@ -85,55 +81,47 @@ public class TTCBusTracker implements EntryPoint {
 
     // Add the map to the HTML host page
     RootLayoutPanel.get().add(dock);
-    
-    String vehicleLocationUrl = "http://webservices.nextbus.com/service/publicXMLFeed?command=vehicleLocations&a=ttc&r=53&t=0";
-    RequestBuilder requestBuilder = new RequestBuilder(RequestBuilder.GET, vehicleLocationUrl);  
-    
-    try {
-    	 requestBuilder.sendRequest(null, new RequestCallback() {
-    		 public void onError(Request request, Throwable exception) {
-    			 requestFailed(exception);
-    		 }
-    		 public void onResponseReceived(Request request, Response response) {
-    			 vehicleLocations = parseVehicleLocations(response.getText());
-    			 
-    			 for (int i = 0; i < vehicleLocations.size(); i++){
-    				 int heading = vehicleLocations.get(i).getHeading();
-    				 int approxHeading = ((heading + 5) / 10 * 10) % 360;
-    				 Icon busIcon = Icon.newInstance(GWT.getModuleBaseURL() + "images/bus_icon" + approxHeading + ".gif");
-        			 busIcon.setIconSize(Size.newInstance(60, 60));
-        			 busIcon.setIconAnchor(Point.newInstance(30, 30));
-        			 busIcon.setInfoWindowAnchor(Point.newInstance(30, 30));
-        			 
-        			 MarkerOptions options = MarkerOptions.newInstance();
-        			 options.setIcon(busIcon);
-        			 map.addOverlay(new Marker(vehicleLocations.get(i).getLatLng(), options));
-    			 }
-    		 }
-    		 });
-    } catch (RequestException ex) {
-    		  requestFailed(ex);
-    }
-
-    
-    
     	 
+    nextBusClient.requestRouteList();
+  }
+ 
+  
+  public void routeListHandler(List<Route> routeList){
+	  for (int i = 0; i < routeList.size(); i++){
+		  busRoutesListBox.addItem(routeList.get(i).getTitle());
+	  }
+	  this.routeList = routeList;
   }
   
-  private void requestFailed(Throwable exception) {
-	  Window.alert("Failed to send the message: " + exception.getMessage());
-  }
-  
-  private List<Vehicle> parseVehicleLocations(String xmlText) {	
-	  List<Vehicle> vehicleList = new ArrayList<Vehicle>();
-	  Document vehicleLocationDom = XMLParser.parse(xmlText);
-	  NodeList vehicleNodeList = vehicleLocationDom.getElementsByTagName("vehicle");
-	  
-	  for (int i = 0; i < vehicleNodeList.getLength(); i++){
-		  Element n = (Element)vehicleNodeList.item(i);
-		  vehicleList.add(new Vehicle(n));
+  public void vehicleLocationsHandler(List<Vehicle> vehicleLocations){
+	  if (vehicleLocations.size() == 0){
+		  Window.alert("No buses in service");
 	  }
 	  
-	  return vehicleList;
+	  map.clearOverlays();
+	  double avgLat = 0, avgLong = 0; 
+	  for (int i = 0; i < vehicleLocations.size(); i++){
+		 int heading = vehicleLocations.get(i).getHeading();
+		 int approxHeading = ((heading + 5) / 10 * 10) % 360;
+		 Icon busIcon = Icon.newInstance(GWT.getModuleBaseURL() + "images/bus_icon" + approxHeading + ".gif");
+		 busIcon.setIconSize(Size.newInstance(60, 60));
+		 busIcon.setIconAnchor(Point.newInstance(30, 30));
+		 busIcon.setInfoWindowAnchor(Point.newInstance(30, 30));
+		 
+		 MarkerOptions options = MarkerOptions.newInstance();
+		 options.setIcon(busIcon);
+		 map.addOverlay(new Marker(vehicleLocations.get(i).getLatLng(), options));
+		 
+		 avgLat += vehicleLocations.get(i).getLatitude();
+		 avgLong += vehicleLocations.get(i).getLongitude();
+	  }
+	  this.vehicleLocations = vehicleLocations;
+	  
+	  // centre the map, at the centre point of all vehicles
+	  if (vehicleLocations.size() != 0){
+		  avgLat /= vehicleLocations.size();
+		  avgLong /= vehicleLocations.size();
+		  map.panTo(LatLng.newInstance(avgLat, avgLong));
+	  }
   }
 }
